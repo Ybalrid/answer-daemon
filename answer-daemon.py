@@ -12,7 +12,7 @@ SOCKET_PATH = "/tmp/answer-daemon.sock"
 
 ser = serial.Serial(
     SERIAL_PORT,
-    baudrate=9600,
+    baudrate=115200,
     bytesize=8,
     parity="N",
     stopbits=1,
@@ -26,9 +26,7 @@ def modem_reader():
     while True:
         data = ser.read(1024)
         if data:
-            print(
-                "[MODEM]",
-                data.decode(errors="replace"),
+            print(data.decode(errors="replace"),
                 end="",
                 flush=True,
             )
