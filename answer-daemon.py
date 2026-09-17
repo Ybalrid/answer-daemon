@@ -10,6 +10,47 @@ SERIAL_PORT = "/dev/ttyUSB0"
 SOCKET_PATH = "/tmp/answer-daemon.sock"
 
 
+# Relais telnet pour BBS
+BBS_HOST = "127.0.0.1"
+BBS_PORT = 2323
+
+bbs_sock = None
+data_mode = False
+
+def connect_bbs():
+    global bbs_sock
+
+    print(f"[BBS] connexion à {BBS_HOST}:{BBS_PORT}")
+    bbs_sock = socket.create_connection((BBS_HOST, BBS_PORT))
+    print("[BBS] connecté à Mystic")
+
+    threading.Thread(
+        target=bbs_reader,
+        daemon=True,
+    ).start()
+
+def bbs_reader():
+    global bbs_sock, data_mode
+
+    try:
+        while data_mode:
+            data = bbs_sock.recv(4096)
+
+            if not data:
+                print("[BBS] Mystic a fermé la connexion")
+                break
+
+            ser.write(data)
+            ser.flush()
+
+    finally:
+        if bbs_sock:
+            bbs_sock.close()
+            bbs_sock = None
+
+        data_mode = False
+
+
 ser = serial.Serial(
     SERIAL_PORT,
     baudrate=115200,
@@ -22,15 +63,41 @@ ser = serial.Serial(
 
 
 def modem_reader():
-    """Affiche en permanence ce que raconte l'Olitec."""
+    global data_mode
+
+    line_buffer = b""
+
     while True:
         data = ser.read(1024)
-        if data:
-            print(data.decode(errors="replace"),
-                end="",
-                flush=True,
-            )
 
+        if not data:
+            continue
+
+        if data_mode:
+            if bbs_sock:
+                bbs_sock.sendall(data)
+
+            continue
+
+        # Mode commandes modem
+        print(
+            data.decode(errors="replace"),
+            end="",
+            flush=True,
+        )
+
+        line_buffer += data
+
+        while b"\n" in line_buffer:
+            line, line_buffer = line_buffer.split(b"\n", 1)
+            line = line.strip()
+
+            if line.startswith(b"CONNECT"):
+                print("\n[MODEM] DATA MODE")
+
+                data_mode = True
+                connect_bbs()
+                break
 
 threading.Thread(target=modem_reader, daemon=True).start()
 
@@ -73,7 +140,7 @@ try:
             elif command == "HANGUP":
                 print("[ACTION] DTR down -> hangup")
                 ser.dtr = False
-                time.sleep(0.2)
+                time.sleep(1)
                 ser.dtr = True
                 conn.sendall(b"OK\n")
 
