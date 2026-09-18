@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+
 import os
 import socket
 import threading
@@ -140,9 +141,12 @@ try:
             elif command == "HANGUP":
                 print("[ACTION] DTR down -> hangup")
                 ser.dtr = False
-                time.sleep(1)
+                time.sleep(1.0)
                 ser.dtr = True
-                conn.sendall(b"OK\n")
+                try:
+                    conn.sendall(b"OK\n")
+                except BrokenPipeError:
+                    pass
 
             else:
                 print(f"[WARN] commande inconnue : {command}")
